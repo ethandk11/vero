@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
+<title>Vero — Connecting to Salesforce</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0}
+  body{font-family:'DM Sans',sans-serif;background:#f5f0e8;min-height:100vh;display:flex;align-items:center;justify-content:center;color:#1c2b1a}
+  .card{background:#fffdf8;border:1px solid #e4ded4;border-radius:14px;padding:3rem 2.5rem;text-align:center;max-width:420px;width:90%}
+  .logo{display:flex;align-items:center;justify-content:center;gap:10px;margin-bottom:2rem}
+  .logo-word{font-family:'DM Serif Display',serif;font-size:22px;color:#1c2b1a;letter-spacing:-.01em}
+  .spinner{width:40px;height:40px;border:2px solid #e4ded4;border-top-color:#4a7c59;border-radius:50%;animation:spin .8s linear infinite;margin:0 auto 1.5rem}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .status{font-size:14px;color:#4a7c59;font-weight:500;margin-bottom:.5rem}
+  .sub{font-size:12px;color:#7a8c7a}
+  .success-icon{width:44px;height:44px;background:#e8f5e4;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem}
+  .error-icon{width:44px;height:44px;background:#fbeaea;border-radius:50%;display:flex;align-items:center;justify-content:center;margin:0 auto 1.25rem}
+  .btn{display:inline-block;margin-top:1.25rem;font-size:13px;font-weight:500;font-family:'DM Sans',sans-serif;padding:9px 20px;border-radius:8px;background:#4a7c59;color:#fff;border:none;cursor:pointer;text-decoration:none;transition:background .15s}
+  .btn:hover{background:#1c2b1a}
+  .powered{font-size:10px;letter-spacing:.1em;text-transform:uppercase;color:#b8a898;margin-top:2rem}
+  .powered span{color:#4a7c59}
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="logo">
+    <svg width="28" height="38" viewBox="0 0 56 76" xmlns="http://www.w3.org/2000/svg">
+      <polygon points="28,2 22,14 34,14" fill="#1c2b1a"/>
+      <polygon points="28,8 20,22 36,22" fill="#2d4229"/>
+      <polygon points="28,15 18,31 38,31" fill="#1c2b1a"/>
+      <polygon points="28,22 16,40 40,40" fill="#2d4229"/>
+      <rect x="25" y="40" width="6" height="11" fill="#1c2b1a"/>
+      <line x1="2" y1="53" x2="54" y2="53" stroke="#1c2b1a" stroke-width="2" stroke-linecap="round"/>
+      <rect x="2" y="57" width="52" height="16" fill="#1c2b1a" rx="1.5"/>
+      <text x="28" y="68" text-anchor="middle" font-family="Georgia,serif" font-size="8" fill="#fffdf8" letter-spacing="3">VERO</text>
+    </svg>
+    <span class="logo-word">Vero</span>
+  </div>
+
+  <div id="state-loading">
+    <div class="spinner"></div>
+    <div class="status">Connecting to Salesforce...</div>
+    <div class="sub">Exchanging credentials, just a moment.</div>
+  </div>
+
+  <div id="state-success" style="display:none">
+    <div class="success-icon">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M4 11l4.5 4.5 9.5-9" stroke="#2d6a3f" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </div>
+    <div class="status" style="color:#2d6a3f">Connected successfully</div>
+    <div class="sub">Salesforce is linked. Redirecting you back to Vero...</div>
+    <a href="./index.html" class="btn">Back to Vero</a>
+  </div>
+
+  <div id="state-error" style="display:none">
+    <div class="error-icon">
+      <svg width="22" height="22" viewBox="0 0 22 22" fill="none"><path d="M11 7v5M11 15v1" stroke="#8f3a2a" stroke-width="2" stroke-linecap="round"/><circle cx="11" cy="11" r="9" stroke="#8f3a2a" stroke-width="1.5" fill="none"/></svg>
+    </div>
+    <div class="status" style="color:#8f3a2a">Connection failed</div>
+    <div class="sub" id="error-msg">Something went wrong during authentication.</div>
+    <a href="./index.html" class="btn" style="background:#8f3a2a">Back to Vero</a>
+  </div>
+
+  <div class="powered">A <span>Riskonnect</span> product</div>
+</div>
+
+<script>
+(function() {
+  const params = new URLSearchParams(window.location.hash.replace('#','?') || window.location.search);
+  const code  = params.get('code');
+  const error = params.get('error');
+  const state = params.get('state');
+
+  const storedState = sessionStorage.getItem('sf_oauth_state');
+
+  if (error) {
+    show('error');
+    document.getElementById('error-msg').textContent =
+      'Salesforce returned: ' + (params.get('error_description') || error);
+    return;
+  }
+
+  if (!code) {
+    show('error');
+    document.getElementById('error-msg').textContent = 'No authorization code received.';
+    return;
+  }
+
+  if (state && storedState && state !== storedState) {
+    show('error');
+    document.getElementById('error-msg').textContent = 'State mismatch — possible CSRF. Please try again.';
+    return;
+  }
+
+  sessionStorage.setItem('sf_auth_code', code);
+  sessionStorage.removeItem('sf_oauth_state');
+
+  show('success');
+  setTimeout(() => { window.location.href = './index.html?sf_connected=1'; }, 1800);
+
+  function show(s) {
+    document.getElementById('state-loading').style.display = 'none';
+    document.getElementById('state-' + s).style.display = 'block';
+  }
+})();
+</script>
+</body>
+</html>
